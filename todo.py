@@ -16,7 +16,7 @@ class TodoList:
     def complete_task(self, index):
         if index < 0 or index >= len(self.tasks):
             raise IndexError("Task index out of range")
-        self.tasks[index]["completed"] = False
+        self.tasks[index]["completed"] = True
         return self.tasks[index]
 
     def uncomplete_task(self, index):

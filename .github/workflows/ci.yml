@@ -1,0 +1,128 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Stage 1: Linting
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run flake8
+      run: flake8 . --exclude=.git,__pycache__,venv --max-line-length=100
+
+    - name: Check code formatting with black
+      run: black --check .
+
+  # Stage 2: Testing
+  test:
+    name: Run Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests with coverage
+      run: pytest -v --cov=todo --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: coverage.xml
+
+  # Stage 3: Build
+  build:
+    name: Build Application
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Test application import
+      run: python -c "from todo import TodoList; print('TODO List application is working!')"
+
+    - name: Create build directory
+      run: |
+        mkdir -p build
+        cp todo.py build/
+        cp requirements.txt build/
+        echo "Build completed at $(date)" > build/build-info.txt
+        echo "Python version: $(python --version)" >> build/build-info.txt
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifact
+        path: build/
+
+  # Stage 4: Deploy (Simulation)
+  deploy:
+    name: Deploy (Simulated)
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: build-artifact
+        path: build/
+
+    - name: Display deployment info
+      run: |
+        echo "========================================="
+        echo "Deployment simulation successful!"
+        echo "========================================="
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "========================================="
+        cat build/build-info.txt
+        echo "========================================="
